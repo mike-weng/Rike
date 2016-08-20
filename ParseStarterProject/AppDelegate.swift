@@ -9,22 +9,46 @@
 
 import UIKit
 import Parse
+import PubNub
 import ParseFacebookUtilsV4
 
 // If you want to use any of the UI components, uncomment this line
 // import ParseUI
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, PNObjectEventListener {
 
     var window: UIWindow?
     //--------------------------------------
     // MARK: - UIApplicationDelegate
     //--------------------------------------
-
+    
+    
+    //PubNub
+    
+    // Instance property
+    var client: PubNub?
+    var configuration: PNConfiguration?
+    
+    
     func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
         
-
+        
+        // Instantiate configuration instance.
+        self.configuration = PNConfiguration(publishKey: "pub-c-9fb2652b-06c7-438e-b3d0-4a23d32da70a", subscribeKey: "sub-c-5a02f9d8-de1a-11e5-a046-0619f8945a4f")
+        // Instantiate PubNub client.
+        client = PubNub.clientWithConfiguration(self.configuration!)
+        client?.addListener(self)
+        
+        
+        
+        // Override point for customization after application launch.
+        let settings = UIUserNotificationSettings(forTypes: [UIUserNotificationType.Badge,UIUserNotificationType.Sound,UIUserNotificationType.Alert], categories: nil)
+        // In iOS 8, this when the user receives a system prompt for notifications in your app
+        UIApplication.sharedApplication().registerUserNotificationSettings(settings)
+        UIApplication.sharedApplication().registerForRemoteNotifications()
+        
+        
         // Enable storing and querying data from Local Datastore.
         // Remove this line if you don't want to use Local Datastore features or want to use cachePolicy.
         Parse.enableLocalDatastore()
@@ -60,7 +84,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 noPushPayload = options[UIApplicationLaunchOptionsRemoteNotificationKey] != nil;
             }
             if (preBackgroundPush || oldPushHandlerOnly || noPushPayload) {
-                PFAnalytics.trackAppOpenedWithLaunchOptions(launchOptions)
+                    PFAnalytics.trackAppOpenedWithLaunchOptions(launchOptions)
             }
         }
 
@@ -98,6 +122,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     //--------------------------------------
 
     func application(application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: NSData) {
+        
+        NSUserDefaults.standardUserDefaults().setObject(deviceToken, forKey: "DeviceToken")
+        
         let installation = PFInstallation.currentInstallation()
         installation.setDeviceTokenFromData(deviceToken)
         installation.saveInBackground()

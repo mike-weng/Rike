@@ -7,20 +7,38 @@
 //
 
 import UIKit
+import PubNub
 
-class ChatRoomViewController: UIViewController {
+class ChatRoomViewController: UIViewController, PNObjectEventListener {
     var tapRecognizer: UITapGestureRecognizer? = nil
     var keyboardAdjusted = false
     var lastKeyboardOffset : CGFloat = 0.0
+    
+    @IBOutlet weak var tableView: UITableView!
+    @IBOutlet weak var messageTextField: UITextField!
+    var messages = [String]()
+    var pubnub: PubNub? {
+        let appDelegate = UIApplication.sharedApplication().delegate as! AppDelegate
+        return appDelegate.client
+    }
+    
     var user: PFUser!
+    var channel: String!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         configureTapRecognizer()
+        pubnub?.addListener(self)
+        pubnub?.subscribeToChannels([self.channel], withPresence: true)
+        
         // Do any additional setup after loading the view.
+        
+        
     }
     override func viewWillAppear(animated: Bool) {
         super.viewWillAppear(animated)
+        self.loadMessages()
+        self.enablePushNotification()
         self.addKeyboardDismissRecognizer()
         self.subscribeToKeyboardNotifications()
     }
@@ -36,12 +54,113 @@ class ChatRoomViewController: UIViewController {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
     }
-    
 
     func configureTapRecognizer() {
         tapRecognizer = UITapGestureRecognizer(target: self, action: "handleSingleTap:")
         tapRecognizer?.numberOfTapsRequired = 1
     }
+    
+    func loadMessages() {
+        self.pubnub?.historyForChannel(self.channel, start: nil, end: nil, limit: 40, reverse: false, includeTimeToken: false, withCompletion: { (result, status) -> Void in
+            if status == nil {
+                print(result?.data.messages)
+                for message in result!.data.messages {
+                    if let message = message as? String {
+                        self.messages.append(message)
+                    } else if let dict = message as? NSDictionary {
+                        if let pnOther = dict["pn_other"] as? String {
+                            self.messages.append(pnOther)
+                        }
+                    }
+                }
+                
+                
+                self.tableView.reloadData()
+                // Handle downloaded history using:
+                //   result.data.start - oldest message time stamp in response
+                //   result.data.end - newest message time stamp in response
+                //   result.data.messages - list of messages
+            }
+            else {
+                
+                // Handle message history download error. Check 'category' property
+                // to find out possible reason because of which request did fail.
+                // Review 'errorData' property (which has PNErrorData data type) of status
+                // object to get additional information about issue.
+                //
+                // Request can be resent using: status.retry()
+            }
+        })
+    }
+    
+    func enablePushNotification() {
+        let deviceToken = NSUserDefaults.standardUserDefaults().objectForKey("DeviceToken") as! NSData
+        self.pubnub!.addPushNotificationsOnChannels([self.channel],
+            withDevicePushToken: deviceToken,
+            andCompletion: { (status) -> Void in
+                
+                if !status.error {
+                    print("pushEnabled")
+                    // Handle successful push notification enabling on passed channels.
+                }
+                else {
+                    
+                    // Handle modification error. Check 'category' property
+                    // to find out possible reason because of which request did fail.
+                    // Review 'errorData' property (which has PNErrorData data type) of status
+                    // object to get additional information about issue.
+                    //
+                    // Request can be resent using: status.retry()
+                }
+        })
+    }
+    
+    @IBAction func sendButtonTouchUp(sender: AnyObject) {
+        let alertMsg = "message from " + (Convenience.currentUser["name"] as! String)
+        let payload = ["aps" : ["alert" : alertMsg]]
+        self.pubnub?.publish(messageTextField.text!, toChannel: self.channel, mobilePushPayload: payload, storeInHistory: true, compressed: false, withCompletion: { (status) -> Void in
+            if !status.error {
+                // Message successfully published to specified channel.
+                
+            }
+            else{
+                
+                // Handle message publish error. Check 'category' property
+                // to find out possible reason because of which request did fail.
+                // Review 'errorData' property (which has PNErrorData data type) of status
+                // object to get additional information about issue.
+                //
+                // Request can be resent using: status.retry()
+                let errorMsg = status.error.description
+                Convenience.showAlert(self, title: "Sent Error", message: errorMsg)
+                
+            }
+
+        })
+        self.messageTextField.text = ""
+    }
+    func client(client: PubNub, didReceiveMessage message: PNMessageResult) {
+        
+        // Handle new message stored in message.data.message
+        if message.data.actualChannel != nil {
+            // Message has been received on channel group stored in
+            // message.data.subscribedChannel
+
+        }
+        else {
+            
+            // Message has been received on channel stored in
+            // message.data.subscribedChannel
+        }
+        let data = message.data.message as! NSDictionary
+        messages.append(data["pn_other"] as! String)
+        self.tableView.reloadData()
+        print("Received message: \(message.data.message) on channel " +
+            "\((message.data.actualChannel ?? message.data.subscribedChannel)!) at " +
+            "\(message.data.timetoken)")
+    }
+
+    
 }
 
 extension ChatRoomViewController: UITableViewDelegate, UITableViewDataSource {
@@ -53,35 +172,15 @@ extension ChatRoomViewController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // #warning Incomplete implementation, return the number of rows
-        return 3
+        return messages.count
     }
     
     
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCellWithIdentifier("MessageCell", forIndexPath: indexPath)
-        cell.textLabel?.text = "message"
-//        let chat = chats[indexPath.row]
-//        
-//        var user = chat["ToUser"] as! PFUser
-//        
-//        if user == Convenience.currentUser {
-//            user = chat["FromUser"] as! PFUser
-//        }
-//        
-//        cell.textLabel?.text = user["name"] as? String
-//        
-//        if let profilePicture = user["profilePicture"] {
-//            let imageFile = profilePicture as! PFFile
-//            imageFile.getDataInBackgroundWithBlock { (result, error) -> Void in
-//                if let imageData = result {
-//                    cell.imageView!.image = UIImage(data: imageData)
-//                } else {
-//                    Convenience.showAlert(self, title: "Error", message: error!.userInfo["error"] as! String)
-//                }
-//            }
-//        }
-//        
+        cell.textLabel?.text = messages[indexPath.row]
+
         return cell
     }
     
@@ -163,7 +262,7 @@ extension ChatRoomViewController {
     func keyboardWillShow(notification: NSNotification) {
         
         if keyboardAdjusted == false {
-            lastKeyboardOffset = getKeyboardHeight(notification)
+            lastKeyboardOffset = getKeyboardHeight(notification) - (self.tabBarController?.tabBar.frame.height)!
             self.view.superview?.frame.origin.y -= lastKeyboardOffset
             keyboardAdjusted = true
         }

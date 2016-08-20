@@ -111,6 +111,7 @@ extension ChatsViewController: UITableViewDelegate, UITableViewDataSource {
         }
 
         chatRoomViewController.user = user
+        chatRoomViewController.channel = chat.valueForKey("Channel") as! String
         self.navigationController?.pushViewController(chatRoomViewController, animated: true)
         
     }

@@ -9,6 +9,7 @@
 
 import UIKit
 import Parse
+import PubNub
 import ParseFacebookUtilsV4
 import FBSDKCoreKit
 
@@ -16,6 +17,7 @@ class LoginViewController: UIViewController {
 
     @IBOutlet weak var usernameTextField: UITextField!
     @IBOutlet weak var passwordTextField: UITextField!
+    var appDelegate: AppDelegate = UIApplication.sharedApplication().delegate as! AppDelegate
     var tapRecognizer: UITapGestureRecognizer? = nil
     
     var keyboardAdjusted = false
@@ -23,6 +25,7 @@ class LoginViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         
         Convenience.configureActivityIndicator(self)
         configureTapRecognizer()
@@ -42,7 +45,6 @@ class LoginViewController: UIViewController {
     
     override func viewWillDisappear(animated: Bool) {
         super.viewWillDisappear(animated)
-        
         self.removeKeyboardDismissRecognizer()
         self.unsubscribeToKeyboardNotifications()
     }
@@ -61,6 +63,7 @@ class LoginViewController: UIViewController {
                 
                 if user != nil {
                     Convenience.currentUser = user
+                    self.appDelegate.configuration?.uuid = Convenience.currentUser.objectId!
                     let tabBarController = self.storyboard?.instantiateViewControllerWithIdentifier("TabBarController") as! UITabBarController
                     self.presentViewController(tabBarController, animated: true, completion: nil)
                 } else {

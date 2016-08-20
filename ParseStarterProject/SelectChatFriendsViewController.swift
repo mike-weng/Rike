@@ -7,9 +7,10 @@
 //
 
 import UIKit
+import PubNub
 
 class SelectChatFriendsViewController: UIViewController {
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -75,6 +76,8 @@ extension SelectChatFriendsViewController: UITableViewDelegate, UITableViewDataS
             
         } else {
             let chat = PFObject(className: "Chat")
+            let channelName = Convenience.currentUser.username! + chosenUser.username!
+            chat.setValue(channelName, forKey: "Channel")
             chat.setObject(Convenience.currentUser, forKey: "FromUser")
             chat.setObject(chosenUser, forKey: "ToUser")
             
@@ -86,7 +89,6 @@ extension SelectChatFriendsViewController: UITableViewDelegate, UITableViewDataS
                         if success {
                             self.dismissViewControllerAnimated(true) { () -> Void in
                                 chatRoomViewController.user = chosenUser
-                                previousViewController.navigationController?.pushViewController(chatRoomViewController, animated: true)
                             }
                         } else {
                             Convenience.showAlert(self, title: "Error", message: error!.userInfo["error"] as! String)
